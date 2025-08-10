@@ -1,0 +1,25 @@
+# Core ML and NLP libraries
+torch>=1.9.0
+torchvision>=0.10.0
+sentence-transformers>=2.2.0
+scikit-learn>=1.0.0
+
+# CLIP dependencies
+ftfy>=6.0.0
+regex>=2021.0.0
+tqdm>=4.62.0
+
+# Image processing
+pillow>=8.3.0
+opencv-python>=4.5.0
+pytesseract>=0.3.8
+
+# PDF processing
+pdf2image>=1.16.3
+
+# Text processing and evaluation
+nltk>=3.6.0
+rouge>=1.0.0
+
+# CLIP installation (requires git)
+git+https://github.com/openai/CLIP.git

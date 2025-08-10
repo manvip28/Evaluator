@@ -1,0 +1,30 @@
+{
+    "Q1": {
+        "Text": "Water boils at 100 degrees Celsius at sea level, but this temperature decreases at higher altitudes due to lower atmospheric pressure.",
+        "Image": null,
+        "Question": "Explain how altitude affects the boiling point of water.",
+        "BloomLevel": "Analyze",
+        "Keywords": ["water", "boils", "100", "celsius", "altitude", "pressure"]
+    },
+    "Q2": {
+        "Text": "Addition is the process of combining numbers or quantities to find their total. It is one of the four basic arithmetic operations and can be represented using the '+' symbol.",
+        "Image": null,
+        "Question": "Define addition and explain its mathematical significance.",
+        "BloomLevel": "Understand",
+        "Keywords": ["addition", "combining", "numbers", "total", "arithmetic", "plus"]
+    },
+    "Q3": {
+        "Text": "The sun is a massive, glowing sphere of hot plasma that generates energy through nuclear fusion and is the primary source of light and heat for Earth.",
+        "Image": "reference_images/sun.png",
+        "Question": "Describe the sun's composition and its role in sustaining life on Earth.",
+        "BloomLevel": "Analyze",
+        "Keywords": ["sun", "star", "plasma", "fusion", "light", "heat", "life"]
+    },
+    "Q5": {
+        "Text": "A sustainable house design should maximize energy efficiency, use renewable materials, and incorporate passive heating and cooling techniques.",
+        "Image": "reference_images/house.png",
+        "Question": "Draw and describe a sustainable house design.",
+        "BloomLevel": "Create",
+        "Keywords": ["house", "sustainable", "energy", "renewable", "design"]
+    }
+}
