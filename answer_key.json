@@ -20,7 +20,7 @@
         "BloomLevel": "Analyze",
         "Keywords": ["sun", "star", "plasma", "fusion", "light", "heat", "life"]
     },
-    "Q5": {
+    "Q4": {
         "Text": "A sustainable house design should maximize energy efficiency, use renewable materials, and incorporate passive heating and cooling techniques.",
         "Image": "reference_images/house.png",
         "Question": "Draw and describe a sustainable house design.",

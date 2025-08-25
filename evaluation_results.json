@@ -1,0 +1,92 @@
+{
+  "individual_results": {
+    "Q1": {
+      "question": "Explain how altitude affects the boiling point of water.",
+      "expected_answer": "Water boils at 100 degrees Celsius at sea level, but this temperature decreases at higher altitudes due to lower atmospheric pressure.",
+      "student_answer": "Water boils at 100 degrees Celsius at sea level.",
+      "evaluation_details": {
+        "semantic_score": 0.9113,
+        "bleu": 0.2276,
+        "rouge_l": 0.5185,
+        "keyword_coverage": 0.6667,
+        "bloom_classified": "Understand",
+        "bloom_expected": "Analyze",
+        "bloom_penalty": 0.1,
+        "image_similarity": null,
+        "raw_score": 0.6291,
+        "final_score": 0.6902
+      },
+      "percentage_score": 69.0,
+      "has_student_image": false,
+      "has_reference_image": false
+    },
+    "Q2": {
+      "question": "Define addition and explain its mathematical significance.",
+      "expected_answer": "Addition is the process of combining numbers or quantities to find their total. It is one of the four basic arithmetic operations and can be represented using the '+' symbol.",
+      "student_answer": "Addition is combining two or more numbers to get a sum. For example, 2 + 3 = 5.",
+      "evaluation_details": {
+        "semantic_score": 0.9226,
+        "bleu": 0.0221,
+        "rouge_l": 0.2273,
+        "keyword_coverage": 0.5,
+        "bloom_classified": "Remember",
+        "bloom_expected": "Understand",
+        "bloom_penalty": 0.05,
+        "image_similarity": null,
+        "raw_score": 0.539,
+        "final_score": 0.6099
+      },
+      "percentage_score": 61.0,
+      "has_student_image": false,
+      "has_reference_image": false
+    },
+    "Q3": {
+      "question": "Describe the sun's composition and its role in sustaining life on Earth.",
+      "expected_answer": "The sun is a massive, glowing sphere of hot plasma that generates energy through nuclear fusion and is the primary source of light and heat for Earth.",
+      "student_answer": "The sun is a star located at the center of our solar system.",
+      "evaluation_details": {
+        "semantic_score": 0.6874,
+        "bleu": 0.0729,
+        "rouge_l": 0.3243,
+        "keyword_coverage": 0.2857,
+        "bloom_classified": "Understand",
+        "bloom_expected": "Analyze",
+        "bloom_penalty": 0.1,
+        "image_similarity": null,
+        "raw_score": 0.3904,
+        "final_score": 0.4712
+      },
+      "percentage_score": 47.1,
+      "has_student_image": true,
+      "has_reference_image": true
+    },
+    "Q4": {
+      "question": "Draw and describe a sustainable house design.",
+      "expected_answer": "A sustainable house design should maximize energy efficiency, use renewable materials, and incorporate passive heating and cooling techniques.",
+      "student_answer": "the house",
+      "evaluation_details": {
+        "semantic_score": 0.2716,
+        "bleu": 0.0,
+        "rouge_l": 0.1053,
+        "keyword_coverage": 0.2,
+        "bloom_classified": "Understand",
+        "bloom_expected": "Create",
+        "bloom_penalty": 0.15,
+        "image_similarity": null,
+        "raw_score": 0.1642,
+        "final_score": 0.2357
+      },
+      "percentage_score": 23.6,
+      "has_student_image": true,
+      "has_reference_image": true
+    }
+  },
+  "summary": {
+    "total_questions": 4,
+    "answered_questions": 4,
+    "evaluated_questions": 4,
+    "overall_average": 50.2,
+    "total_possible_score": 400,
+    "total_achieved_score": 200.7
+  }
+}

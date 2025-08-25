@@ -1,5 +1,5 @@
-# answer_evaluator.py
-
+# enhanced_answer_evaluator.py
+import json
 from sentence_transformers import SentenceTransformer, util
 from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
 from rouge import Rouge
@@ -7,6 +7,8 @@ import nltk
 import re
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
+from clip_image_compare import compare_images
+from bloom_utils import classify_bloom
 
 # -------------------- NLTK Downloads --------------------
 try:
@@ -25,58 +27,7 @@ smoothie = SmoothingFunction().method4
 stop_words = set(stopwords.words('english'))
 
 # -------------------- Helper Functions --------------------
-def extract_keywords(text, domain_keywords=None):
-    tokens = word_tokenize(text.lower())
-    words = [word for word in tokens if word.isalnum() and word not in stop_words]
-    if domain_keywords:
-        matches = [kw for kw in domain_keywords if kw.lower() in text.lower()]
-        return matches
-    return words
-
-def classify_bloom(question, answer):
-    question = question.lower()
-    answer = answer.lower()
-    if re.search(r'\b(define|list|name|identify|recall|state|who|what|when|where)\b', question):
-        question_level = "Remember"
-    elif re.search(r'\b(explain|describe|compare|contrast|summarize|interpret|paraphrase)\b', question):
-        question_level = "Understand"
-    elif re.search(r'\b(apply|use|demonstrate|illustrate|solve|implement|design)\b', question):
-        question_level = "Apply"
-    elif re.search(r'\b(analyze|differentiate|organize|attribute|distinguish|examine)\b', question):
-        question_level = "Analyze"
-    elif re.search(r'\b(evaluate|assess|critique|judge|justify|recommend)\b', question):
-        question_level = "Evaluate"
-    elif re.search(r'\b(create|design|construct|plan|produce|develop|formulate)\b', question):
-        question_level = "Create"
-    else:
-        question_level = None
-
-    if re.search(r'\b(is|are|was|were|means)\b', answer) and len(answer.split()) < 20:
-        answer_level = "Remember"
-    elif re.search(r'\b(because|since|as|consists of|includes)\b', answer):
-        answer_level = "Understand"
-    elif re.search(r'\b(can be used to|applied|implemented|designed|built)\b', answer):
-        answer_level = "Apply"
-    elif re.search(r'\b(compared to|differs from|analysis|relationship|impact of|effect of)\b', answer):
-        answer_level = "Analyze"
-    elif re.search(r'\b(better|worse|more effective|less efficient|advantages|disadvantages|pros|cons)\b', answer):
-        answer_level = "Evaluate"
-    elif re.search(r'\b(new|novel|innovative|created|designed|developed|proposed)\b', answer):
-        answer_level = "Create"
-    else:
-        answer_level = "Understand"
-
-    bloom_hierarchy = ["Remember", "Understand", "Apply", "Analyze", "Evaluate", "Create"]
-    if question_level and answer_level:
-        q_idx = bloom_hierarchy.index(question_level)
-        a_idx = bloom_hierarchy.index(answer_level)
-        return bloom_hierarchy[max(q_idx, a_idx)]
-    elif answer_level:
-        return answer_level
-    elif question_level:
-        return question_level
-    else:
-        return "Understand"
+# Removed extract_keywords function as it's unused - keyword coverage is handled directly in keyword_coverage_score
 
 def keyword_coverage_score(student_text, reference_keywords):
     if not reference_keywords:
@@ -84,22 +35,32 @@ def keyword_coverage_score(student_text, reference_keywords):
     matches = sum(1 for keyword in reference_keywords if keyword.lower() in student_text.lower())
     return matches / len(reference_keywords)
 
-def evaluate_answer(gt_question, gt_answer, stu_answer, bloom_gt=None, keywords=None):
+def evaluate_answer(gt_question, gt_answer, stu_answer, bloom_gt=None, keywords=None, image_score=None):
     """
     Evaluate a single student answer against the ground truth.
-    
+
     Args:
         gt_question: Ground truth question text
         gt_answer: Ground truth answer text
         stu_answer: Student's answer text
         bloom_gt: Expected Bloom's taxonomy level (optional)
         keywords: List of expected keywords (optional)
-    
+        image_score: Optional image similarity score (float between 0-1)
+
     Returns:
         Dictionary with evaluation metrics
     """
     # Handle empty or None answers
     if not stu_answer or not stu_answer.strip():
+        # If student provided only an image, score based on image similarity
+        if image_score is not None:
+            epsilon = 0.1  # weight for image contribution
+            final_score = epsilon * image_score
+            curved_score = pow(final_score, 0.8)
+        else:
+            final_score = 0.0
+            curved_score = 0.0
+
         return {
             "semantic_score": 0.0,
             "bleu": 0.0,
@@ -108,10 +69,12 @@ def evaluate_answer(gt_question, gt_answer, stu_answer, bloom_gt=None, keywords=
             "bloom_classified": "Remember",
             "bloom_expected": bloom_gt or "Understand",
             "bloom_penalty": 0.0,
-            "raw_score": 0.0,
-            "final_score": 0.0
+            "image_similarity": round(image_score, 4) if image_score is not None else None,
+            "raw_score": round(final_score, 4),
+            "final_score": round(curved_score, 4)
         }
 
+    # --- Text-based evaluation ---
     emb_gt = sbert_model.encode(gt_answer, convert_to_tensor=True)
     emb_stu = sbert_model.encode(stu_answer, convert_to_tensor=True)
     sem_score = util.cos_sim(emb_gt, emb_stu).item()
@@ -128,13 +91,13 @@ def evaluate_answer(gt_question, gt_answer, stu_answer, bloom_gt=None, keywords=
     kw_coverage = keyword_coverage_score(stu_answer, keywords) if keywords else 0.5
     classified = classify_bloom(gt_question or "", stu_answer)
 
-    # Handle Bloom's taxonomy penalty
+    # Bloom's taxonomy penalty
     if bloom_gt:
         bloom_hierarchy = ["Remember", "Understand", "Apply", "Analyze", "Evaluate", "Create"]
         expected_idx = bloom_hierarchy.index(bloom_gt)
         actual_idx = bloom_hierarchy.index(classified)
         bloom_diff = expected_idx - actual_idx
-        
+
         if bloom_diff == 0:
             penalty = 0.0
         elif bloom_diff > 0:
@@ -144,9 +107,14 @@ def evaluate_answer(gt_question, gt_answer, stu_answer, bloom_gt=None, keywords=
     else:
         penalty = 0.0
 
-    alpha, beta, gamma, delta = 0.4, 0.2, 0.3, 0.1
+    # --- Weighted scoring with epsilon for image ---
+    alpha, beta, gamma, delta, epsilon = 0.4, 0.2, 0.3, 0.1, 0.1
     traditional_score = (bleu_score + rouge_score) / 2
     final_score = (alpha * sem_score) + (beta * traditional_score) + (gamma * kw_coverage) - (delta * penalty)
+
+    if image_score is not None:
+        final_score += epsilon * image_score
+
     final_score = min(max(final_score, 0.0), 1.0)
     curved_score = pow(final_score, 0.8)
 
@@ -158,87 +126,220 @@ def evaluate_answer(gt_question, gt_answer, stu_answer, bloom_gt=None, keywords=
         "bloom_classified": classified,
         "bloom_expected": bloom_gt or "Understand",
         "bloom_penalty": round(penalty, 4),
+        "image_similarity": round(image_score, 4) if image_score is not None else None,
         "raw_score": round(final_score, 4),
         "final_score": round(curved_score, 4)
     }
 
-def evaluate_text_answer(student_answer, reference_answer, question_text="", bloom_level=None, keywords=None):
-    """
-    Simplified interface for text evaluation.
-    Returns a score between 0 and 1.
-    """
-    result = evaluate_answer(question_text, reference_answer, student_answer, bloom_level, keywords)
-    return result["final_score"]
 
-# -------------------- Sample Data for Testing --------------------
-def run_sample_test():
-    """Run the original sample test for verification"""
-    answer_key = {
-        "questions": [
-            {
-                "id": 1,
-                "question": "Explain the architecture of ARM processor.",
-                "answer": "The ARM architecture includes components like the processor core, interrupt controller, memory controller, and peripheral controllers connected through AHB and APB buses.",
-                "bloom": "Understand",
-                "keywords": ["processor core", "interrupt controller", "memory controller", "peripheral", "AHB", "APB", "buses"]
-            },
-            {
-                "id": 2,
-                "question": "Design a simple block diagram for embedded systems.",
-                "answer": "The design includes components such as CPU, memory, I/O devices, timers, and buses. Communication occurs through system buses like AHB and APB.",
-                "bloom": "Apply",
-                "keywords": ["CPU", "memory", "I/O", "timers", "buses", "AHB", "APB"]
-            },
-            {
-                "id": 3,
-                "question": "Analyze how AHB and APB improve embedded system performance.",
-                "answer": "AHB enables high-speed communication between major components, while APB connects low-speed peripherals. This separation improves efficiency and reduces bottlenecks.",
-                "bloom": "Analyze",
-                "keywords": ["AHB", "APB", "high-speed", "low-speed", "efficiency", "bottlenecks", "separation"]
+
+def load_json_file(filename):
+    """Load JSON file with error handling"""
+    try:
+        print(f"Loading file: {filename}")
+        with open(filename, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            print(f"Successfully loaded {filename} with {len(data)} items")
+            return data
+    except FileNotFoundError:
+        print(f"Error: File '{filename}' not found.")
+        print("Make sure the file exists in the current directory.")
+        return None
+    except json.JSONDecodeError as e:
+        print(f"Error: Invalid JSON format in '{filename}': {e}")
+        return None
+
+def evaluate_from_json_files(student_file, answer_key_file):
+    # Load JSON files
+    student_data = load_json_file(student_file)
+    answer_key_data = load_json_file(answer_key_file)
+    
+    if not student_data or not answer_key_data:
+        return None
+    
+    results = {}
+    total_score = 0
+    evaluated_questions = 0
+    
+    # Process each question in the answer key
+    for question_id, answer_key_info in answer_key_data.items():
+        if question_id in student_data:
+            student_info = student_data[question_id]
+            
+            # Extract data from answer key
+            gt_question = answer_key_info.get("Question", "")
+            gt_answer = answer_key_info.get("Text", "")
+            bloom_level = answer_key_info.get("BloomLevel", "Understand")
+            keywords = answer_key_info.get("Keywords", [])
+            
+            # Image comparison if both student and reference provide images
+            student_img = student_info.get("Image")
+            reference_img = answer_key_info.get("Image")
+
+            image_score = None
+            if student_img and reference_img:
+                try:
+                    image_score = compare_images(student_img, reference_img)
+                except Exception as e:
+                    print(f"Image comparison failed for {question_id}: {e}")
+                    image_score = None
+
+            # Extract student answer
+            student_answer = student_info.get("Text", "")
+            
+            # Only evaluate if there's a ground truth answer
+            if gt_answer.strip():
+                evaluation = evaluate_answer(
+                    gt_question, 
+                    gt_answer, 
+                    student_answer, 
+                    bloom_level, 
+                    keywords
+                )
+                
+                percentage_score = round(evaluation["final_score"] * 100, 1)
+                
+                results[question_id] = {
+                    "question": gt_question,
+                    "expected_answer": gt_answer,
+                    "student_answer": student_answer,
+                    "evaluation_details": evaluation,
+                    "percentage_score": percentage_score,
+                    "has_student_image": bool(student_info.get("Image")),
+                    "has_reference_image": bool(answer_key_info.get("Image"))
+                }
+
+                if image_score is not None:
+                    results[question_id]["evaluation_details"]["image_similarity"] = round(image_score, 4)
+                
+                total_score += percentage_score
+                evaluated_questions += 1
+            else:
+                results[question_id] = {
+                    "question": gt_question,
+                    "expected_answer": "No reference answer provided",
+                    "student_answer": student_answer,
+                    "percentage_score": "N/A",
+                    "note": "Cannot evaluate - no reference answer"
+                }
+        else:
+            # Question exists in answer key but student didn't answer
+            results[question_id] = {
+                "question": answer_key_data[question_id].get("Question", ""),
+                "expected_answer": answer_key_data[question_id].get("Text", ""),
+                "student_answer": "No answer provided",
+                "percentage_score": 0.0,
+                "evaluation_details": {
+                    "semantic_score": 0.0,
+                    "final_score": 0.0
+                }
             }
-        ]
+            evaluated_questions += 1
+    
+    # Calculate overall statistics
+    overall_average = total_score / evaluated_questions if evaluated_questions > 0 else 0
+    
+    return {
+        "individual_results": results,
+        "summary": {
+            "total_questions": len(answer_key_data),
+            "answered_questions": len([q for q in student_data.keys() if q in answer_key_data and student_data[q].get("Text", "").strip()]),
+            "evaluated_questions": evaluated_questions,
+            "overall_average": round(overall_average, 1),
+            "total_possible_score": evaluated_questions * 100,
+            "total_achieved_score": round(total_score, 1)
+        }
     }
 
-    student_answers = {
-        "answers": [
-            {
-                "id": 1,
-                "answer": "ARM includes the processor core, memory controller, interrupt controller and uses AHB and APB buses to connect peripherals."
-            },
-            {
-                "id": 2,
-                "answer": "A diagram has CPU, memory, timers, I/O devices all connected using buses like AHB and APB."
-            },
-            {
-                "id": 3,
-                "answer": "AHB connects fast components and APB connects slow devices, so performance is better."
-            }
-        ]
-    }
+def generate_detailed_report(results):
+    """Generate a detailed evaluation report"""
+    if not results:
+        print("No results to generate report from.")
+        return
+    
+    print("=" * 80)
+    print("STUDENT ANSWER EVALUATION REPORT")
+    print("=" * 80)
+    
+    # Summary statistics
+    summary = results["summary"]
+    print(f"\nOVERALL SUMMARY:")
+    print(f"Total Questions: {summary['total_questions']}")
+    print(f"Questions Answered: {summary['answered_questions']}")
+    print(f"Questions Evaluated: {summary['evaluated_questions']}")
+    print(f"Overall Average: {summary['overall_average']}%")
+    print(f"Total Score: {summary['total_achieved_score']}/{summary['total_possible_score']}")
+    
+    # Individual question results
+    print(f"\nDETAILED RESULTS:")
+    print("-" * 80)
+    
+    for question_id, result in results["individual_results"].items():
+        score = result['percentage_score']
+        score_str = f"{score}%" if isinstance(score, (int, float)) else str(score)
+        print(f"\n{question_id.upper()}: {score_str}")
 
-    results = []
-    for gt_q in answer_key["questions"]:
-        stu_ans = next((a for a in student_answers["answers"] if a["id"] == gt_q["id"]), None)
-        if stu_ans:
-            evaluation = evaluate_answer(gt_q["question"], gt_q["answer"], stu_ans["answer"], gt_q["bloom"], gt_q.get("keywords", []))
-            percentage_score = round(evaluation["final_score"] * 100, 1)
-            results.append({
-                "question_id": gt_q["id"],
-                "question": gt_q["question"],
-                "model_answer": gt_q["answer"],
-                "student_answer": stu_ans["answer"],
-                "evaluation": evaluation,
-                "percentage_score": percentage_score
-            })
 
-    for result in results:
-        print(f"Question {result['question_id']}: {result['question']}")
-        print(f"Model answer: {result['model_answer']}")
-        print(f"Student answer: {result['student_answer']}")
-        print(f"Score: {result['percentage_score']}%")
-        print(f"Bloom's level: Expected '{result['evaluation']['bloom_expected']}', Classified as '{result['evaluation']['bloom_classified']}'")
-        print("-" * 80)
+def main():
+    """Main function to run the evaluation with command line arguments"""
+    import sys
+    import os
+    
+    print("Starting Answer Evaluator...")
+    
+    # Check if file paths are provided as command line arguments
+    if len(sys.argv) == 3:
+        student_file = sys.argv[1]
+        answer_key_file = sys.argv[2]
+    elif len(sys.argv) == 1:
+        # Default file paths if no arguments provided
+        student_file = "student_answer.json"
+        answer_key_file = "answer_key.json"
+    else:
+        print("Usage: python answer_evaluator.py [student_answers.json] [answer_key.json]")
+        print("Or run without arguments to use default files:")
+        print("  - student_answer.json")
+        print("  - student_answer_key.json")
+        return
+    
+    # Check if files exist
+    print(f"\nCurrent directory: {os.getcwd()}")
+    print(f"Looking for files:")
+    print(f"  - Student answers: {student_file}")
+    print(f"  - Answer key: {answer_key_file}")
+    
+    if not os.path.exists(student_file):
+        print(f"ERROR: {student_file} not found!")
+        return
+    
+    if not os.path.exists(answer_key_file):
+        print(f"ERROR: {answer_key_file} not found!")
+        return
+    
+    # Run evaluation
+    print(f"\nStarting evaluation...")
+    print(f"Student answers file: {student_file}")
+    print(f"Answer key file: {answer_key_file}")
+    print("-" * 50)
+    
+    try:
+        results = evaluate_from_json_files(student_file, answer_key_file)
+        
+        if results:
+            generate_detailed_report(results)
+            
+            # Optional: Save results to JSON file
+            output_file = "evaluation_results.json"
+            with open(output_file, "w", encoding="utf-8") as f:
+                json.dump(results, f, indent=2, ensure_ascii=False)
+            print(f"\nDetailed results saved to '{output_file}'")
+        else:
+            print("Evaluation failed. Please check your JSON files.")
+            
+    except Exception as e:
+        print(f"An error occurred during evaluation: {e}")
+        import traceback
+        traceback.print_exc()
 
-# -------------------- Main Execution --------------------
 if __name__ == "__main__":
-    run_sample_test()
+    main()
