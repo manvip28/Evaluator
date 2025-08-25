@@ -46,25 +46,3 @@ def compare_images(img1_path, img2_path):
     emb2 = get_clip_embedding(img2_path)
     similarity = cosine_similarity(emb1, emb2)[0][0]
     return float(similarity)
-
-def main():
-    parser = argparse.ArgumentParser(description="Compare two images using OpenAI CLIP (ViT-B/32).")
-    parser.add_argument("--img1", required=True, help="Path to first image")
-    parser.add_argument("--img2", required=True, help="Path to second image")
-    parser.add_argument("--verbose", action="store_true", help="Print extra info")
-    args = parser.parse_args()
-
-    try:
-        score = compare_images(args.img1, args.img2)
-    except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
-        sys.exit(2)
-
-    print(f"CLIP Cosine Similarity Score: {score:.6f}")
-    if args.verbose:
-        print(f"Device used: {device}")
-        print(f"Image 1: {args.img1}")
-        print(f"Image 2: {args.img2}")
-
-if __name__ == "__main__":
-    main()
