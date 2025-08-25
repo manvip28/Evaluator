@@ -1,0 +1,19 @@
+
+{
+    "Q1": {
+        "Text": "Water boils at 100 degrees Celsius at sea level.",
+        "Image": null
+    },
+    "Q2": {
+        "Text": "Addition is combining two or more numbers to get a sum. For example, 2 + 3 = 5.",
+        "Image": null
+    },
+    "Q3": {
+        "Text": "The sun is a star located at the center of our solar system.",
+        "Image": "reference_images/sun.png"
+    },
+    "Q4": {
+        "Text": "the house",
+        "Image": "reference_images/house.png"
+    }
+}
